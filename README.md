@@ -1,3 +1,3 @@
 # SwiftCompilerArguments
 
-A description of this package.
+Used to parse / modify / generate swift compiler arguments.
