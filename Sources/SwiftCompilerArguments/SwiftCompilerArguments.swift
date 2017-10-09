@@ -7,7 +7,9 @@
 
 import Foundation
 
-public class SwiftCompilerArguments {
+public class SwiftCompilerArguments: ArgumentParser {
+    public var patterns: [Pattern] = []
+
     public var frontend: Bool = false
     public var primarySourceFile: String? = nil
     public var otherSourceFiles: [String] = []
@@ -21,63 +23,33 @@ public class SwiftCompilerArguments {
     public var moduleCachePath: String? = nil
     public var threads: Int? = nil
     public var swiftVersionString: String? = nil
+    public var cCompilerArguments: CCompilerArguments = CCompilerArguments()
+    public var llvmArguments: LLVMCompilerArguments = LLVMCompilerArguments()
 
     public init(arguments: [String]) {
-        var arguments: [String] = arguments.reversed()
+        var xccArguments = [String]()
+        var xllvmArguments = [String]()
 
-        while let next = arguments.popLast() {
-            switch next {
-            case "-frontend":
-                frontend = true
-            case "-module-name":
-                moduleName = arguments.popLast()!
-            case "-primary-file":
-                primarySourceFile = arguments.popLast()!
-            case "-sdk":
-                sdkRoot = arguments.popLast()!
-            case "-target":
-                target = arguments.popLast()!
-            case "-D":
-                defines += [arguments.popLast()!]
-            case "-I":
-                importPaths += [arguments.popLast()!]
-            case "-F":
-                frameworkSearchPaths += [arguments.popLast()!]
-            case "-module-cache-path":
-                moduleCachePath = arguments.popLast()!
-            case "-swift-version":
-                swiftVersionString = arguments.popLast()!
-            default:
-                if next.hasPrefix("-j") {
-                    threads = Int(next.removePrefix(n: 2))
-                } else if next.hasPrefix("-D") {
-                    defines += [next.removePrefix(n: 2)]
-                } else if next.hasSuffix(".swift") {
-                    otherSourceFiles += [next]
-                } else {
-                    customFlags += [next]
-                }
-            }
-        }
-    }
+        patterns.append(FlagPattern(name: "-frontend", action: { [weak self] in self?.frontend = true }))
+        patterns.append(ArgumentPattern(name: "-module-name", action: { [weak self] in self?.moduleName = $0 }))
+        patterns.append(ArgumentPattern(name: "-swift-version", action: { [weak self] in self?.swiftVersionString = $0 }))
+        patterns.append(ArgumentPattern(name: "-primary-file", action: { [weak self] in self?.primarySourceFile = $0 }))
+        patterns.append(ArgumentPattern(name: "-sdk", action: { [weak self] in self?.sdkRoot = $0 }))
+        patterns.append(ArgumentPattern(name: "-target", action: { [weak self] in self?.target = $0 }))
+        patterns.append(ArgumentPattern(name: "-D", action: { [weak self] in self?.defines.append($0) }))
+        patterns.append(ArgumentPattern(name: "-I", action: { [weak self] in self?.importPaths.append($0) }))
+        patterns.append(ArgumentPattern(name: "-F", action: { [weak self] in self?.frameworkSearchPaths.append($0) }))
+        patterns.append(ArgumentPattern(name: "-module-cache-path", action: { [weak self] in self?.moduleCachePath = $0 }))
+        patterns.append(ArgumentPattern(name: "-j", position: [.prefix], action: { [weak self] in self?.threads = Int($0) }))
 
-    // FIXME: Add missing parameters.
-    public init(
-        primarySourceFile: String? = nil,
-        otherSourceFiles: [String] = [],
-        sdkRoot: String? = nil,
-        target: String? = nil,
-        importPaths: [String] = [],
-        frameworkSearchPaths: [String] = [],
-        customFlags: [String] = []
-    ) {
-        self.primarySourceFile = primarySourceFile
-        self.otherSourceFiles = otherSourceFiles
-        self.target = target
-        self.importPaths = importPaths
-        self.frameworkSearchPaths = frameworkSearchPaths
-        self.customFlags = customFlags
-        self.sdkRoot = sdkRoot
+        patterns.append(ArgumentPattern(name: "-Xcc", action: { xccArguments.append($0) }))
+        patterns.append(ArgumentPattern(name: "-Xllvm", action: { xllvmArguments.append($0) }))
+        patterns.append(CustomPattern<Void>(ruleBlock: { $0.hasSuffix(".swift") ? () : nil }, actionBlock: { [weak self] (_, value, _) in self?.otherSourceFiles.append(value) }))
+
+        parse(arguments: arguments)
+
+        cCompilerArguments = CCompilerArguments(arguments: xccArguments)
+        llvmArguments = LLVMCompilerArguments(arguments: xllvmArguments)
     }
 
     public func arguments() -> [String] {
@@ -94,7 +66,54 @@ public class SwiftCompilerArguments {
         result.append(name: "-F", frameworkSearchPaths)
         result.append(name: "-module-cache-path", moduleCachePath)
         result.append(name: "-j", threads, combined: true)
-        result.append(name: "-D", defines, combined: true)
+        result.append(name: "-D", defines)
+        result.append(name: "-Xcc", cCompilerArguments.arguments())
+        result.append(name: "-Xllvm", llvmArguments.arguments())
+
+        result += customFlags
+
+        return result
+    }
+}
+
+public class CCompilerArguments: ArgumentParser {
+    public var patterns: [Pattern] = []
+    public var importPaths: [String] = []
+    public var customFlags: [String] = []
+
+    init() {}
+
+    public init(arguments: [String]) {
+        patterns.append(ArgumentPattern(names: ["-I"], action: { [weak self] (value) in
+            self?.importPaths.append(value)
+        }))
+
+        parse(arguments: arguments)
+    }
+
+    public func arguments(combined: Bool = true) -> [String] {
+        var result = [String]()
+
+        result.append(name: "-I", importPaths, combined: combined)
+        result += customFlags
+
+        return result
+    }
+}
+
+public class LLVMCompilerArguments: ArgumentParser {
+    public var patterns: [Pattern] = []
+    public var customFlags: [String] = []
+
+    init() {}
+
+    public init(arguments: [String]) {
+
+        parse(arguments: arguments)
+    }
+
+    public func arguments(combined: Bool = true) -> [String] {
+        var result = [String]()
 
         result += customFlags
 
@@ -104,13 +123,13 @@ public class SwiftCompilerArguments {
 
 // MARK: - Helpers
 
-private extension String {
+extension String {
     func removePrefix(n: Int) -> String {
         return String(self[self.index(self.startIndex, offsetBy: n)...])
     }
 }
 
-private extension Array where Element == String {
+extension Array where Element == String {
     mutating func append(name: String, _ value: String?, combined: Bool = false) {
         if let value = value {
             if !combined {
