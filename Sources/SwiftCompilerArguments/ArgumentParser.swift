@@ -12,25 +12,44 @@ public protocol Pattern {
     var actionBlock: (Any, String, inout [String]) -> Void { get }
 }
 
-public class CustomPattern<T>: Pattern {
-    public let ruleBlock: (String) -> Any?
-    public let actionBlock: (Any, String, inout [String]) -> Void
+protocol TypedPattern: Pattern {
+    associatedtype CheckResultType
+    var typedRuleBlock: (String) -> CheckResultType? { get }
+    var typedActionBlock: (CheckResultType, String, inout [String]) -> Void { get }
+}
 
-    public init(ruleBlock: @escaping (String) -> T?, actionBlock: @escaping (T, String, inout [String]) -> Void) {
-        self.ruleBlock = { ruleBlock($0) as Any? }
-        self.actionBlock = { actionBlock($0 as! T, $1, &$2 ) }
+extension TypedPattern {
+    public var ruleBlock: (String) -> Any? {
+        return { self.typedRuleBlock($0) as Any? }
+    }
+    public var actionBlock: (Any, String, inout [String]) -> Void {
+        return { self.typedActionBlock($0 as! CheckResultType, $1, &$2 ) }
     }
 }
 
-public class FlagPattern: CustomPattern<Void> {
+public class CustomPattern<T>: TypedPattern {
+    typealias CheckResultType = T
+
+    var typedRuleBlock: (String) -> CheckResultType?
+    var typedActionBlock: (CheckResultType, String, inout [String]) -> Void
+
+    public init(ruleBlock: @escaping (String) -> T?, actionBlock: @escaping (T, String, inout [String]) -> Void) {
+        self.typedRuleBlock = ruleBlock
+        self.typedActionBlock = actionBlock
+    }
+}
+
+public class FlagPattern: TypedPattern {
+    typealias CheckResultType = Void
+    var typedRuleBlock: (String) -> CheckResultType?
+    var typedActionBlock: (CheckResultType, String, inout [String]) -> Void
+
     public let names: Set<String>
 
     public init(names: Set<String>, action: @escaping () -> Void) {
         self.names = names
-        super.init(
-            ruleBlock: { names.contains($0) ? () : nil },
-            actionBlock: { (_,_,_) in action() }
-        )
+        self.typedRuleBlock = { names.contains($0) ? () : nil }
+        self.typedActionBlock = { (_,_,_) in action() }
     }
 
     public convenience init(name: String, action: @escaping () -> Void) {
@@ -38,12 +57,16 @@ public class FlagPattern: CustomPattern<Void> {
     }
 }
 
-public enum ArgumentPatternCheckResult {
-    case front
-    case prefix(name: String)
-}
+public class ArgumentPattern: TypedPattern {
+    enum CheckResult {
+        case front // -D DEBUG
+        case prefix(name: String) // -DDEBUG
+        case equal(name: String) // -D=DEBUG
+    }
+    typealias CheckResultType = CheckResult
+    var typedRuleBlock: (String) -> CheckResultType?
+    var typedActionBlock: (CheckResultType, String, inout [String]) -> Void
 
-public class ArgumentPattern: CustomPattern<ArgumentPatternCheckResult> {
     public let names: Set<String>
     public struct Position: OptionSet {
         public let rawValue: Int
@@ -54,18 +77,24 @@ public class ArgumentPattern: CustomPattern<ArgumentPatternCheckResult> {
 
         public static let front = Position(rawValue: 1 << 0)
         public static let prefix = Position(rawValue: 1 << 1)
+        public static let equal = Position(rawValue: 1 << 2)
 
-        public static let all: Position = [.front, .prefix]
+        public static let all: Position = [.front, .prefix, .equal]
     }
     public let position: Position
 
     public init(names: Set<String>, position: Position = .all, action: @escaping (_ value: String) -> Void) {
         self.names = names
         self.position = position
-        let ruleBlock = { (argument: String) -> ArgumentPatternCheckResult? in
+        self.typedRuleBlock = { (argument: String) -> CheckResult? in
             if position.contains(.front) {
                 if names.contains(argument) {
                     return .front
+                }
+            }
+            if position.contains(.equal) {
+                for name in names where argument.hasPrefix(name + "=") {
+                    return .equal(name: name)
                 }
             }
             if position.contains(.prefix) {
@@ -75,15 +104,16 @@ public class ArgumentPattern: CustomPattern<ArgumentPatternCheckResult> {
             }
             return nil
         }
-        let actionBlock = { (result: ArgumentPatternCheckResult, argument: String, arguments: inout [String]) -> Void in
+        self.typedActionBlock = { (result: CheckResult, argument: String, arguments: inout [String]) -> Void in
             switch result {
             case .front:
                 action(arguments.popLast()!)
             case let .prefix(name):
                 action(argument.removePrefix(n: name.count))
+            case let .equal(name):
+                action(argument.removePrefix(n: name.count + 1))
             }
         }
-        super.init(ruleBlock: ruleBlock, actionBlock: actionBlock)
     }
 
     public convenience init(name: String, position: Position = .all, action: @escaping (_ value: String) -> Void) {

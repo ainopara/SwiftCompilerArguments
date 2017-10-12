@@ -21,10 +21,13 @@ public class SwiftCompilerArguments: ArgumentParser {
     public var customFlags: [String] = []
     public var defines: [String] = []
     public var moduleCachePath: String? = nil
+    public var enforceExclusivity: String? = nil
+    public var optimize: String? = nil
     public var threads: Int? = nil
     public var swiftVersionString: String? = nil
+    public var output: String? = nil
     public var cCompilerArguments: CCompilerArguments = CCompilerArguments()
-    public var llvmArguments: LLVMCompilerArguments = LLVMCompilerArguments()
+    public var llvmArguments: LLVMArguments = LLVMArguments()
 
     public init(arguments: [String]) {
         var xccArguments = [String]()
@@ -41,6 +44,9 @@ public class SwiftCompilerArguments: ArgumentParser {
         patterns.append(ArgumentPattern(name: "-F", action: { [weak self] in self?.frameworkSearchPaths.append($0) }))
         patterns.append(ArgumentPattern(name: "-module-cache-path", action: { [weak self] in self?.moduleCachePath = $0 }))
         patterns.append(ArgumentPattern(name: "-j", position: [.prefix], action: { [weak self] in self?.threads = Int($0) }))
+        patterns.append(ArgumentPattern(name: "-O", position: [.prefix], action: { [weak self] in self?.optimize = $0 }))
+        patterns.append(ArgumentPattern(name: "-o", action: { [weak self] in self?.output = $0 }))
+        patterns.append(ArgumentPattern(name: "-enforce-exclusivity", action: { [weak self] in self?.enforceExclusivity = $0 }))
 
         patterns.append(ArgumentPattern(name: "-Xcc", action: { xccArguments.append($0) }))
         patterns.append(ArgumentPattern(name: "-Xllvm", action: { xllvmArguments.append($0) }))
@@ -49,7 +55,7 @@ public class SwiftCompilerArguments: ArgumentParser {
         parse(arguments: arguments)
 
         cCompilerArguments = CCompilerArguments(arguments: xccArguments)
-        llvmArguments = LLVMCompilerArguments(arguments: xllvmArguments)
+        llvmArguments = LLVMArguments(arguments: xllvmArguments)
     }
 
     public func arguments() -> [String] {
@@ -65,10 +71,14 @@ public class SwiftCompilerArguments: ArgumentParser {
         result.append(name: "-I", importPaths)
         result.append(name: "-F", frameworkSearchPaths)
         result.append(name: "-module-cache-path", moduleCachePath)
-        result.append(name: "-j", threads, combined: true)
+        result.append(name: "-enforce-exclusivity", enforceExclusivity, combination: .equal)
+        result.append(name: "-j", threads, combination: .join)
+        result.append(name: "-O", optimize, combination: .join)
         result.append(name: "-D", defines)
+        result.append(name: "-o", output)
         result.append(name: "-Xcc", cCompilerArguments.arguments())
         result.append(name: "-Xllvm", llvmArguments.arguments())
+
 
         result += customFlags
 
@@ -91,17 +101,17 @@ public class CCompilerArguments: ArgumentParser {
         parse(arguments: arguments)
     }
 
-    public func arguments(combined: Bool = true) -> [String] {
+    public func arguments(combination: Combination = .join) -> [String] {
         var result = [String]()
 
-        result.append(name: "-I", importPaths, combined: combined)
+        result.append(name: "-I", importPaths, combination: combination)
         result += customFlags
 
         return result
     }
 }
 
-public class LLVMCompilerArguments: ArgumentParser {
+public class LLVMArguments: ArgumentParser {
     public var patterns: [Pattern] = []
     public var customFlags: [String] = []
 
@@ -112,7 +122,7 @@ public class LLVMCompilerArguments: ArgumentParser {
         parse(arguments: arguments)
     }
 
-    public func arguments(combined: Bool = true) -> [String] {
+    public func arguments(combination: Combination = .join) -> [String] {
         var result = [String]()
 
         result += customFlags
@@ -129,24 +139,33 @@ extension String {
     }
 }
 
+public enum Combination {
+    case space
+    case join
+    case equal
+}
+
 extension Array where Element == String {
-    mutating func append(name: String, _ value: String?, combined: Bool = false) {
+    mutating func append(name: String, _ value: String?, combination: Combination = .space) {
         if let value = value {
-            if !combined {
+            switch combination {
+            case .space:
                 self += [name, value]
-            } else {
+            case .join:
                 self += [name + value]
+            case .equal:
+                self += [name + "=" + value]
             }
         }
     }
 
-    mutating func append(name: String, _ value: Int?, combined: Bool = false) {
-        self.append(name: name, value.map { "\($0)" }, combined: combined)
+    mutating func append(name: String, _ value: Int?, combination: Combination = .space) {
+        self.append(name: name, value.map { "\($0)" }, combination: combination)
     }
 
-    mutating func append(name: String, _ array: [String], combined: Bool = false) {
+    mutating func append(name: String, _ array: [String], combination: Combination = .space) {
         for value in array {
-            self.append(name: name, value, combined: combined)
+            self.append(name: name, value, combination: combination)
         }
     }
 
