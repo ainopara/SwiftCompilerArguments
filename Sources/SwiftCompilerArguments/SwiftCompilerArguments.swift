@@ -167,3 +167,11 @@ extension Array where Element == String {
         }
     }
 }
+
+extension Dictionary where Key == String, Value == Any {
+    mutating func appendArray(key: String, value: String) {
+        let currentValues = self[key] as? [String] ?? [String]()
+        let newValues = currentValues + [value]
+        self[key] = newValues
+    }
+}

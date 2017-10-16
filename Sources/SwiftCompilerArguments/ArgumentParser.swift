@@ -75,12 +75,6 @@ public class FlagPattern: TypedPattern {
     public convenience init(name: String, key: String? = nil) {
         self.init(names: [name], key: key)
     }
-
-//    public init(names: Set<String>, action: @escaping (inout [String: Any]) -> Void) {
-//        self.names = names
-//        self.typedRuleBlock = { names.contains($0) ? () : nil }
-//        self.typedActionBlock = { (_,_,_, jsonModel) in action(&jsonModel) }
-//    }
 }
 
 public class ArgumentPattern: TypedPattern {
@@ -174,45 +168,6 @@ public class ArgumentPattern: TypedPattern {
             }
         }
     }
-
-//    public init(names: Set<String>, position: Position = .all, action: @escaping (_ value: String, _ jsonModel: inout [String: Any]) -> Void) {
-//        self.names = Set(names)
-//        self.position = position
-//        self.valueAction = nil
-//
-//        self.typedRuleBlock = { (argument: String) -> CheckResult? in
-//            if position.contains(.front) {
-//                if names.contains(argument) {
-//                    return .front
-//                }
-//            }
-//            if position.contains(.equal) {
-//                for name in names where argument.hasPrefix(name + "=") {
-//                    return .equal(name: name)
-//                }
-//            }
-//            if position.contains(.prefix) {
-//                for name in names where argument.hasPrefix(name) {
-//                    return .prefix(name: name)
-//                }
-//            }
-//            return nil
-//        }
-//        self.typedActionBlock = { (result: CheckResult, argument: String, arguments: inout [String], jsonModel: inout [String: Any]) -> Void in
-//            switch result {
-//            case .front:
-//                action(arguments.popLast()!, &jsonModel)
-//            case let .prefix(name):
-//                action(argument.removePrefix(n: name.count), &jsonModel)
-//            case let .equal(name):
-//                action(argument.removePrefix(n: name.count + 1), &jsonModel)
-//            }
-//        }
-//    }
-//
-//    public convenience init(name: String, position: Position = .all, action: @escaping (_ value: String) -> Void) {
-//        self.init(names: Set(arrayLiteral: name), position: position, action: action)
-//    }
 }
 
 public class PassbyPattern: ArgumentPattern {
@@ -273,10 +228,4 @@ extension ArgumentParser {
     }
 }
 
-extension Dictionary where Key == String, Value == Any {
-    mutating func appendArray(key: String, value: String) {
-        let currentValues = self[key] as? [String] ?? [String]()
-        let newValues = currentValues + [value]
-        self[key] = newValues
-    }
-}
+
