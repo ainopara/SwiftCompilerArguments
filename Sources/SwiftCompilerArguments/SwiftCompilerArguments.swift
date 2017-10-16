@@ -7,9 +7,8 @@
 
 import Foundation
 
-public class SwiftCompilerArguments: ArgumentParser {
-    public var patterns: [Pattern] = []
 
+public class SwiftCompilerArguments: Codable {
     public var frontend: Bool = false
     public var primarySourceFile: String? = nil
     public var otherSourceFiles: [String] = []
@@ -28,35 +27,6 @@ public class SwiftCompilerArguments: ArgumentParser {
     public var output: String? = nil
     public var cCompilerArguments: CCompilerArguments = CCompilerArguments()
     public var llvmArguments: LLVMArguments = LLVMArguments()
-
-    public init(arguments: [String]) {
-        var xccArguments = [String]()
-        var xllvmArguments = [String]()
-
-        patterns.append(FlagPattern(name: "-frontend", action: { [weak self] in self?.frontend = true }))
-        patterns.append(ArgumentPattern(name: "-module-name", action: { [weak self] in self?.moduleName = $0 }))
-        patterns.append(ArgumentPattern(name: "-swift-version", action: { [weak self] in self?.swiftVersionString = $0 }))
-        patterns.append(ArgumentPattern(name: "-primary-file", action: { [weak self] in self?.primarySourceFile = $0 }))
-        patterns.append(ArgumentPattern(name: "-sdk", action: { [weak self] in self?.sdkRoot = $0 }))
-        patterns.append(ArgumentPattern(name: "-target", action: { [weak self] in self?.target = $0 }))
-        patterns.append(ArgumentPattern(name: "-D", action: { [weak self] in self?.defines.append($0) }))
-        patterns.append(ArgumentPattern(name: "-I", action: { [weak self] in self?.importPaths.append($0) }))
-        patterns.append(ArgumentPattern(name: "-F", action: { [weak self] in self?.frameworkSearchPaths.append($0) }))
-        patterns.append(ArgumentPattern(name: "-module-cache-path", action: { [weak self] in self?.moduleCachePath = $0 }))
-        patterns.append(ArgumentPattern(name: "-j", position: [.prefix], action: { [weak self] in self?.threads = Int($0) }))
-        patterns.append(ArgumentPattern(name: "-O", position: [.prefix], action: { [weak self] in self?.optimize = $0 }))
-        patterns.append(ArgumentPattern(name: "-o", action: { [weak self] in self?.output = $0 }))
-        patterns.append(ArgumentPattern(name: "-enforce-exclusivity", action: { [weak self] in self?.enforceExclusivity = $0 }))
-
-        patterns.append(ArgumentPattern(name: "-Xcc", action: { xccArguments.append($0) }))
-        patterns.append(ArgumentPattern(name: "-Xllvm", action: { xllvmArguments.append($0) }))
-        patterns.append(CustomPattern<Void>(ruleBlock: { $0.hasSuffix(".swift") ? () : nil }, actionBlock: { [weak self] (_, value, _) in self?.otherSourceFiles.append(value) }))
-
-        parse(arguments: arguments)
-
-        cCompilerArguments = CCompilerArguments(arguments: xccArguments)
-        llvmArguments = LLVMArguments(arguments: xllvmArguments)
-    }
 
     public func arguments() -> [String] {
         var result = [String]()
@@ -79,55 +49,77 @@ public class SwiftCompilerArguments: ArgumentParser {
         result.append(name: "-Xcc", cCompilerArguments.arguments())
         result.append(name: "-Xllvm", llvmArguments.arguments())
 
-
         result += customFlags
 
         return result
     }
 }
 
-public class CCompilerArguments: ArgumentParser {
-    public var patterns: [Pattern] = []
+public class SwiftCompilerArgumentParser: ArgumentParser {
+    public typealias Model = SwiftCompilerArguments
+
+    public required init() {}
+
+    public static func patterns() -> [Pattern] {
+        return [
+            FlagPattern(name: "-frontend"),
+            ArgumentPattern(name: "-module-name"),
+            ArgumentPattern(name: "-swift-version"),
+            ArgumentPattern(name: "-primary-file"),
+            ArgumentPattern(name: "-sdk", key: "sdkRoot"),
+            ArgumentPattern(name: "-target"),
+            ArgumentPattern(name: "-D", key: "defines", valueAction: .array),
+            ArgumentPattern(name: "-I", key: "importPaths", valueAction: .array),
+            ArgumentPattern(name: "-F", key: "frameworkSearchPaths", valueAction: .array),
+            ArgumentPattern(name: "-module-cache-path"),
+            ArgumentPattern(name: "-j", key: "threads", position: [.prefix], valueAction: .integer),
+            ArgumentPattern(name: "-O", key: "optimize", position: [.prefix]),
+            ArgumentPattern(name: "-o", key: "output", position: [.front]),
+            ArgumentPattern(name: "-enforce-exclusivity"),
+            PassbyPattern(name: "-Xcc", key: "cCompilerArguments", parserType: CCompilerArguments.self),
+            PassbyPattern(name: "-Xllvm", key: "llvmArguments", parserType: LLVMArguments.self),
+            CustomPattern<Void>(ruleBlock: { $0.hasSuffix(".swift") ? () : nil }, actionBlock: { (_, value, _, model) in
+                model.appendArray(key: "otherSourceFiles", value: value)
+            })
+        ]
+    }
+}
+
+public class CCompilerArguments: ArgumentParser, Codable {
+    public typealias Model = CCompilerArguments
     public var importPaths: [String] = []
     public var customFlags: [String] = []
 
-    init() {}
-
-    public init(arguments: [String]) {
-        patterns.append(ArgumentPattern(names: ["-I"], action: { [weak self] (value) in
-            self?.importPaths.append(value)
-        }))
-
-        parse(arguments: arguments)
-    }
+    public required init() {}
 
     public func arguments(combination: Combination = .join) -> [String] {
         var result = [String]()
-
         result.append(name: "-I", importPaths, combination: combination)
         result += customFlags
-
         return result
+    }
+
+    public static func patterns() -> [Pattern] {
+        return [
+            ArgumentPattern(names: ["-I"], key: "importPaths", valueAction: .array)
+        ]
     }
 }
 
-public class LLVMArguments: ArgumentParser {
-    public var patterns: [Pattern] = []
+public class LLVMArguments: ArgumentParser, Codable {
+    public typealias Model = CCompilerArguments
     public var customFlags: [String] = []
 
-    init() {}
-
-    public init(arguments: [String]) {
-
-        parse(arguments: arguments)
-    }
+    public required init() {}
 
     public func arguments(combination: Combination = .join) -> [String] {
         var result = [String]()
-
         result += customFlags
-
         return result
+    }
+
+    public static func patterns() -> [Pattern] {
+        return []
     }
 }
 
