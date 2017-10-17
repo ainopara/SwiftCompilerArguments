@@ -10,13 +10,22 @@ import Foundation
 
 public class SwiftCompilerArguments: Codable {
     public var frontend: Bool = false
+    public var incremental: Bool = false
+    public enum EmitDebugInfoMode: String, Codable {
+        case normal = ""
+        case none = "none"
+    }
+    public var emitDebugInfoMode: EmitDebugInfoMode? = nil
+
+    // Input
     public var primarySourceFile: String? = nil
     public var otherSourceFiles: [String] = []
     public var moduleName: String?
-    public var target: String? = nil
     public var sdkRoot: String? = nil
     public var importPaths: [String] = []
     public var frameworkSearchPaths: [String] = []
+
+    public var target: String? = nil
     public var customFlags: [String] = []
     public var defines: [String] = []
     public var moduleCachePath: String? = nil
@@ -24,7 +33,19 @@ public class SwiftCompilerArguments: Codable {
     public var optimize: String? = nil
     public var threads: Int? = nil
     public var swiftVersionString: String? = nil
+
+    // Output
+    public var emitObject: Bool = false
+    public var emitAssembly: Bool = false
     public var output: String? = nil
+    public var emitModule: Bool = false
+    public var emitModulePath: String? = nil
+    public var emitObjcHeader: Bool = false
+    public var emitObjcHeaderPath: String? = nil
+    public var indexStorePath: String? = nil
+    public var outputFileMap: String? = nil
+
+    // Others
     public var cCompilerArguments: CCompilerArguments = CCompilerArguments()
     public var llvmArguments: LLVMArguments = LLVMArguments()
 
@@ -32,6 +53,9 @@ public class SwiftCompilerArguments: Codable {
         var result = [String]()
 
         result.append(name: "-frontend", frontend)
+        result.append(name: "-incremental", incremental)
+        result.append(name: "-c", emitObject)
+        result.append(name: "-S", emitAssembly)
         result.append(name: "-module-name", moduleName)
         result.append(name: "-swift-version", swiftVersionString)
         result.append(name: "-primary-file", primarySourceFile)
@@ -45,6 +69,13 @@ public class SwiftCompilerArguments: Codable {
         result.append(name: "-j", threads, combination: .join)
         result.append(name: "-O", optimize, combination: .join)
         result.append(name: "-D", defines)
+        result.append(name: "-g", emitDebugInfoMode, combination: .join)
+        result.append(name: "-emit-module", emitModule)
+        result.append(name: "-emit-module-path", emitModulePath)
+        result.append(name: "-emit-objc-header", emitObjcHeader)
+        result.append(name: "-emit-objc-header-path", emitObjcHeaderPath)
+        result.append(name: "-index-store-path", indexStorePath)
+        result.append(name: "-output-file-map", outputFileMap)
         result.append(name: "-o", output)
         result.append(name: "-Xcc", cCompilerArguments.arguments())
         result.append(name: "-Xllvm", llvmArguments.arguments())
@@ -63,6 +94,12 @@ public class SwiftCompilerArgumentParser: ArgumentParser {
     public static func patterns() -> [Pattern] {
         return [
             FlagPattern(name: "-frontend"),
+            FlagPattern(name: "-incremental"),
+            FlagPattern(name: "-emit-module"),
+            ArgumentPattern(name: "-emit-module-path"),
+            FlagPattern(name: "-emit-objc-header"),
+            ArgumentPattern(name: "-emit-objc-header-path"),
+            ArgumentPattern(name: "-index-store-path"),
             ArgumentPattern(name: "-module-name"),
             ArgumentPattern(name: "-swift-version"),
             ArgumentPattern(name: "-primary-file"),
@@ -74,6 +111,10 @@ public class SwiftCompilerArgumentParser: ArgumentParser {
             ArgumentPattern(name: "-module-cache-path"),
             ArgumentPattern(name: "-j", key: "threads", position: [.prefix], valueAction: .integer),
             ArgumentPattern(name: "-O", key: "optimize", position: [.prefix]),
+            ArgumentPattern(name: "-g", key: "emitDebugInfoMode", position: [.prefix]),
+            ArgumentPattern(name: "-output-file-map"),
+            FlagPattern(names: ["-emit-object", "-c"]),
+            FlagPattern(names: ["-emit-assembly", "-S"]),
             ArgumentPattern(name: "-o", key: "output", position: [.front]),
             ArgumentPattern(name: "-enforce-exclusivity"),
             PassbyPattern(name: "-Xcc", key: "cCompilerArguments", parserType: CCompilerArguments.self),
@@ -159,6 +200,10 @@ extension Array where Element == String {
         for value in array {
             self.append(name: name, value, combination: combination)
         }
+    }
+
+    mutating func append<T: RawRepresentable>(name: String, _ value: T?, combination: Combination = .space) {
+        self.append(name: name, value.map { "\($0.rawValue)" }, combination: combination)
     }
 
     mutating func append(name: String, _ appear: Bool) {

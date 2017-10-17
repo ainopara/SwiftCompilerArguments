@@ -13,6 +13,7 @@ public protocol Pattern {
 }
 
 extension Pattern {
+    /// `-module-cache-path` to `moduleCachePath`
     static func defaultKey(names: [String]) -> String {
         guard let name = names.first else { return UUID().uuidString }
 
@@ -227,5 +228,3 @@ extension ArgumentParser {
         return try JSONModelDecoder().decode(Model.self, from: jsonModel)
     }
 }
-
-
