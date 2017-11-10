@@ -190,7 +190,7 @@ public protocol ArgumentParser: class {
 }
 
 extension ArgumentParser {
-    func parseJSONModel(arguments: [String]) -> [String: Any] {
+    public func parseJSONModel(arguments: [String]) -> [String: Any] {
         var jsonModel: [String: Any] = [:]
         var arguments: [String] = arguments.reversed()
 
@@ -223,7 +223,7 @@ extension ArgumentParser {
         return jsonModel
     }
 
-    func parse(arguments: [String]) throws -> Model {
+    public func parse(arguments: [String]) throws -> Model {
         let jsonModel = parseJSONModel(arguments: arguments)
         return try JSONModelDecoder().decode(Model.self, from: jsonModel)
     }
