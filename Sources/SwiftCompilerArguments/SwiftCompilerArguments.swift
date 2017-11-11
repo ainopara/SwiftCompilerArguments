@@ -20,7 +20,7 @@ public class SwiftCompilerArguments: Codable {
     // Input
     public var primarySourceFile: String? = nil
     public var otherSourceFiles: [String] = []
-    public var moduleName: String?
+    public var moduleName: String? = nil
     public var sdkRoot: String? = nil
     public var importPaths: [String] = []
     public var frameworkSearchPaths: [String] = []
