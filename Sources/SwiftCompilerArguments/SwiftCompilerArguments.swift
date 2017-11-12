@@ -121,7 +121,7 @@ public class SwiftCompilerArgumentParser: ArgumentParser {
             ArgumentPattern(name: "-enforce-exclusivity"),
             PassbyPattern(name: "-Xcc", key: "cCompilerArguments", parserType: CCompilerArguments.self),
             PassbyPattern(name: "-Xllvm", key: "llvmArguments", parserType: LLVMArguments.self),
-            PassbyPattern(name: "-Xfrontend", key: "swiftFrontendArguments", parserType: SwiftFrontendArguments.self),
+            PassbyPattern(name: "-Xfrontend", key: "frontendArguments", parserType: SwiftFrontendArguments.self),
             CustomPattern<Void>(ruleBlock: { $0.hasSuffix(".swift") ? () : nil }, actionBlock: { (_, value, _, model) in
                 model.appendArray(key: "otherSourceFiles", value: value)
             })
