@@ -29,8 +29,112 @@ class SwiftCompilerArgumentsTests: XCTestCase {
         }
     }
 
+    func testMethodDispatch() {
+        let normalClass = A()
+        let normalClassAsProtocol = normalClass as P
+        XCTAssertEqual(normalClass.x(), ImplementationSource.typeExtension)
+        XCTAssertEqual(normalClass.y(), ImplementationSource.typeExtension)
+        XCTAssertEqual(normalClass.z(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(normalClass.m(), ImplementationSource.typeBody)
+        XCTAssertEqual(normalClass.n(), ImplementationSource.typeBody)
+        XCTAssertEqual(normalClassAsProtocol.x(), ImplementationSource.typeExtension)
+        XCTAssertEqual(normalClassAsProtocol.y(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(normalClassAsProtocol.z(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(normalClassAsProtocol.m(), ImplementationSource.typeBody)
+        XCTAssertEqual(normalClassAsProtocol.n(), ImplementationSource.protocolExtension)
+        let objcClass = A()
+        let objcClassAsProtocol = objcClass as P
+        XCTAssertEqual(objcClass.x(), ImplementationSource.typeExtension)
+        XCTAssertEqual(objcClass.y(), ImplementationSource.typeExtension)
+        XCTAssertEqual(objcClass.z(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(objcClass.m(), ImplementationSource.typeBody)
+        XCTAssertEqual(objcClass.n(), ImplementationSource.typeBody)
+        XCTAssertEqual(objcClassAsProtocol.x(), ImplementationSource.typeExtension)
+        XCTAssertEqual(objcClassAsProtocol.y(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(objcClassAsProtocol.z(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(objcClassAsProtocol.m(), ImplementationSource.typeBody)
+        XCTAssertEqual(objcClassAsProtocol.n(), ImplementationSource.protocolExtension)
+        let finalClass = D()
+        let finalClassAsProtocol = finalClass as P
+        XCTAssertEqual(finalClass.x(), ImplementationSource.typeExtension)
+        XCTAssertEqual(finalClass.y(), ImplementationSource.typeExtension)
+        XCTAssertEqual(finalClass.z(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(finalClass.m(), ImplementationSource.typeBody)
+        XCTAssertEqual(finalClass.n(), ImplementationSource.typeBody)
+        XCTAssertEqual(finalClassAsProtocol.x(), ImplementationSource.typeExtension)
+        XCTAssertEqual(finalClassAsProtocol.y(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(finalClassAsProtocol.z(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(finalClassAsProtocol.m(), ImplementationSource.typeBody)
+        XCTAssertEqual(finalClassAsProtocol.n(), ImplementationSource.protocolExtension)
+        let normalStruct = C()
+        let normalStructAsProtocol = normalStruct as P
+        XCTAssertEqual(normalStruct.x(), ImplementationSource.typeExtension)
+        XCTAssertEqual(normalStruct.y(), ImplementationSource.typeExtension)
+        XCTAssertEqual(normalStruct.z(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(normalStruct.m(), ImplementationSource.typeBody)
+        XCTAssertEqual(normalStruct.n(), ImplementationSource.typeBody)
+        XCTAssertEqual(normalStructAsProtocol.x(), ImplementationSource.typeExtension)
+        XCTAssertEqual(normalStructAsProtocol.y(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(normalStructAsProtocol.z(), ImplementationSource.protocolExtension)
+        XCTAssertEqual(normalStructAsProtocol.m(), ImplementationSource.typeBody)
+        XCTAssertEqual(normalStructAsProtocol.n(), ImplementationSource.protocolExtension)
+    }
 
     static var allTests = [
         ("testInvariant", testInvariant),
     ]
+}
+
+enum ImplementationSource {
+    case protocolExtension
+    case typeBody
+    case typeExtension
+}
+protocol P {
+    func x() -> ImplementationSource
+    func m() -> ImplementationSource
+}
+extension P {
+    func x() -> ImplementationSource { return .protocolExtension }
+    func y() -> ImplementationSource { return .protocolExtension }
+    func z() -> ImplementationSource { return .protocolExtension }
+
+    func m() -> ImplementationSource { return .protocolExtension }
+    func n() -> ImplementationSource { return .protocolExtension }
+}
+
+class A {
+    func m() -> ImplementationSource { return .typeBody }
+    func n() -> ImplementationSource { return .typeBody }
+}
+extension A: P {
+    func x() -> ImplementationSource { return .typeExtension }
+    func y() -> ImplementationSource { return .typeExtension }
+}
+
+@objc class B: NSObject {
+    func m() -> ImplementationSource { return .typeBody }
+    func n() -> ImplementationSource { return .typeBody }
+}
+extension B: P {
+    func x() -> ImplementationSource { return .typeExtension }
+    func y() -> ImplementationSource { return .typeExtension }
+}
+
+final class D {
+    func m() -> ImplementationSource { return .typeBody }
+    func n() -> ImplementationSource { return .typeBody }
+}
+extension D: P {
+    func x() -> ImplementationSource { return .typeExtension }
+    func y() -> ImplementationSource { return .typeExtension }
+}
+
+struct C {
+    func m() -> ImplementationSource { return .typeBody }
+    func n() -> ImplementationSource { return .typeBody }
+}
+extension C: P {
+    func x() -> ImplementationSource { return .typeExtension }
+    func y() -> ImplementationSource { return .typeExtension }
 }

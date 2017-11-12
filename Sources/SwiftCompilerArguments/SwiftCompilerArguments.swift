@@ -48,6 +48,7 @@ public class SwiftCompilerArguments: Codable {
     // Others
     public var cCompilerArguments: CCompilerArguments = CCompilerArguments()
     public var llvmArguments: LLVMArguments = LLVMArguments()
+    public var frontendArguments: SwiftFrontendArguments = SwiftFrontendArguments()
 
     public func arguments() -> [String] {
         var result = [String]()
@@ -79,6 +80,7 @@ public class SwiftCompilerArguments: Codable {
         result.append(name: "-o", output)
         result.append(name: "-Xcc", cCompilerArguments.arguments())
         result.append(name: "-Xllvm", llvmArguments.arguments())
+        result.append(name: "-Xfrontend", frontendArguments.arguments())
 
         result += customFlags
 
@@ -119,9 +121,31 @@ public class SwiftCompilerArgumentParser: ArgumentParser {
             ArgumentPattern(name: "-enforce-exclusivity"),
             PassbyPattern(name: "-Xcc", key: "cCompilerArguments", parserType: CCompilerArguments.self),
             PassbyPattern(name: "-Xllvm", key: "llvmArguments", parserType: LLVMArguments.self),
+            PassbyPattern(name: "-Xfrontend", key: "swiftFrontendArguments", parserType: SwiftFrontendArguments.self),
             CustomPattern<Void>(ruleBlock: { $0.hasSuffix(".swift") ? () : nil }, actionBlock: { (_, value, _, model) in
                 model.appendArray(key: "otherSourceFiles", value: value)
             })
+        ]
+    }
+}
+
+public class SwiftFrontendArguments: ArgumentParser, Codable {
+    public typealias Model = SwiftFrontendArguments
+    public var groupInfoPath: String? = nil
+    public var customFlags: [String] = []
+
+    public required init() {}
+
+    public func arguments(combination: Combination = .join) -> [String] {
+        var result = [String]()
+        result.append(name: "-group-info-path", groupInfoPath)
+        result += customFlags
+        return result
+    }
+
+    public static func patterns() -> [Pattern] {
+        return [
+            ArgumentPattern(name: "-group-info-path")
         ]
     }
 }
